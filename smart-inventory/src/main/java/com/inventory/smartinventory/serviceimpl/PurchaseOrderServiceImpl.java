@@ -1,0 +1,10 @@
+package com.inventory.smartinventory.serviceimpl;
+import com.inventory.smartinventory.entity.*; import com.inventory.smartinventory.repository.*; import com.inventory.smartinventory.service.*;
+import org.springframework.stereotype.Service; import org.springframework.transaction.annotation.Transactional; import org.springframework.http.HttpStatus; import org.springframework.web.server.ResponseStatusException; import java.util.List;
+@Service public class PurchaseOrderServiceImpl implements PurchaseOrderService {
+ private final PurchaseOrderRepository orders; private final ProductRepository products; private final SupplierRepository suppliers; private final StockService stock;
+ public PurchaseOrderServiceImpl(PurchaseOrderRepository o,ProductRepository p,SupplierRepository s,StockService st){orders=o;products=p;suppliers=s;stock=st;}
+ @Transactional public PurchaseOrder create(PurchaseOrder o){if(o.getQuantity()<=0)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Order quantity must be positive");Long pid=o.getProduct()==null?null:o.getProduct().getId();if(pid==null)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Product is required");o.setProduct(products.findById(pid).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Product not found")));if(o.getSupplier()!=null&&o.getSupplier().getId()!=null)o.setSupplier(suppliers.findById(o.getSupplier().getId()).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Supplier not found")));o.setStatus("PENDING");return orders.save(o);}
+ public List<PurchaseOrder> getAll(){return orders.findAll();}
+ @Transactional public PurchaseOrder updateStatus(Long id,String status){PurchaseOrder o=orders.findById(id).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Purchase order not found"));String s=status.toUpperCase();if(!List.of("PENDING","APPROVED","RECEIVED","CANCELLED").contains(s))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Invalid status");if("RECEIVED".equals(s)&&!"RECEIVED".equals(o.getStatus()))stock.stockIn(o.getProduct().getId(),o.getQuantity(),"Received from purchase order #"+id);o.setStatus(s);return orders.save(o);}
+}
